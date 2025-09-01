@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/SupabaseAuthContext';
 import { 
   TrendingUp,
   Users,
@@ -14,7 +13,6 @@ import {
 } from 'lucide-react';
 
 const Sidebar = () => {
-  const { user } = useAuth();
   const [trendingTags, setTrendingTags] = useState([]);
   const [communityStats, setCommunityStats] = useState({
     totalMembers: 1,

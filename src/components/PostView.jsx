@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/SupabaseAuthContext';
-import ReactMarkdown from 'react-markdown';
-import { 
-  Heart, 
-  MessageSquare, 
-  Bookmark, 
-  Share2, 
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../context/SupabaseAuthContext";
+import { postService } from "../services/postService";
+import { usePost, useComments } from "../hooks/usePosts";
+import { useToast } from "./ToastProvider";
+import ReactMarkdown from "react-markdown";
+import {
+  Heart,
+  MessageSquare,
+  Bookmark,
+  Share2,
   MoreHorizontal,
   ArrowLeft,
   Edit,
@@ -15,129 +18,130 @@ import {
   Clock,
   Eye,
   ThumbsUp,
-  ThumbsDown
-} from 'lucide-react';
+} from "lucide-react";
 
 const PostView = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [post, setPost] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [liked, setLiked] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
+  const toast = useToast();
+
+  // Use custom hooks for post and comments
+  const {
+    post,
+    loading: postLoading,
+    toggleLike,
+    toggleBookmark,
+    deletePost,
+  } = usePost(id);
+  const { comments, loading: commentsLoading, addComment } = useComments(id);
+
+  const [newComment, setNewComment] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
-    // Load post from localStorage
-    const savedPosts = localStorage.getItem('inkwell_posts');
-    if (savedPosts) {
-      const allPosts = JSON.parse(savedPosts);
-      const foundPost = allPosts.find(p => p.id === id);
-      
-      if (foundPost) {
-        setPost(foundPost);
-        // Increment view count
-        foundPost.views = (foundPost.views || 0) + 1;
-        localStorage.setItem('inkwell_posts', JSON.stringify(allPosts));
-      }
+    // Increment view count when post loads
+    if (post && user) {
+      postService.incrementViewCount(id);
     }
-    setLoading(false);
-  }, [id]);
+  }, [post, id, user]);
 
-  useEffect(() => {
-    // Load comments for this post
-    const savedComments = localStorage.getItem(`inkwell_comments_${id}`);
-    if (savedComments) {
-      setComments(JSON.parse(savedComments));
+  const handleLike = async () => {
+    if (!user) {
+      toast?.error("Please sign in to like posts");
+      return;
     }
-  }, [id]);
 
-  const handleLike = () => {
-    if (!post) return;
-    
-    const savedPosts = JSON.parse(localStorage.getItem('inkwell_posts') || '[]');
-    const postIndex = savedPosts.findIndex(p => p.id === id);
-    
-    if (postIndex !== -1) {
-      if (liked) {
-        savedPosts[postIndex].likes = Math.max(0, savedPosts[postIndex].likes - 1);
-      } else {
-        savedPosts[postIndex].likes = (savedPosts[postIndex].likes || 0) + 1;
-      }
-      
-      localStorage.setItem('inkwell_posts', JSON.stringify(savedPosts));
-      setPost(savedPosts[postIndex]);
-      setLiked(!liked);
+    const result = await toggleLike(user.id);
+    if (result.error) {
+      toast?.error("Failed to update like");
     }
   };
 
-  const handleBookmark = () => {
-    setBookmarked(!bookmarked);
-    // Save bookmark state to localStorage
-    const bookmarks = JSON.parse(localStorage.getItem(`inkwell_bookmarks_${user.id}`) || '[]');
-    if (bookmarked) {
-      const filtered = bookmarks.filter(b => b !== id);
-      localStorage.setItem(`inkwell_bookmarks_${user.id}`, JSON.stringify(filtered));
+  const handleBookmark = async () => {
+    if (!user) {
+      toast?.error("Please sign in to bookmark posts");
+      return;
+    }
+
+    const result = await toggleBookmark(user.id);
+    if (result.error) {
+      toast?.error("Failed to update bookmark");
     } else {
-      bookmarks.push(id);
-      localStorage.setItem(`inkwell_bookmarks_${user.id}`, JSON.stringify(bookmarks));
+      toast?.success(
+        post?.bookmarked ? "Removed from bookmarks" : "Added to bookmarks"
+      );
     }
   };
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    
-    const comment = {
-      id: Date.now().toString(),
-      content: newComment,
-      authorId: user.id,
-      authorName: user.name,
-      createdAt: new Date().toISOString(),
-      likes: 0
+  const handleShare = async () => {
+    setSharing(true);
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: post?.title,
+          text: post?.excerpt || "Check out this post",
+          url: window.location.href,
+        });
+      } else {
+        // Fallback: Copy to clipboard
+        await navigator.clipboard.writeText(window.location.href);
+        toast?.success("Link copied to clipboard!");
+      }
+    } catch (error) {
+      console.error("Error sharing:", error);
+      // Fallback: Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        toast?.success("Link copied to clipboard!");
+      } catch (err) {
+        toast?.error("Failed to share post");
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+
+    const result = await deletePost();
+    if (result.error) {
+      toast?.error("Failed to delete post");
+    } else {
+      toast?.success("Post deleted successfully");
+      navigate("/dashboard");
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !user) return;
+
+    const commentData = {
+      content: newComment.trim(),
+      author_id: user.id,
+      post_id: id,
     };
-    
-    const updatedComments = [...comments, comment];
-    setComments(updatedComments);
-    localStorage.setItem(`inkwell_comments_${id}`, JSON.stringify(updatedComments));
-    
-    // Update comment count in post
-    const savedPosts = JSON.parse(localStorage.getItem('inkwell_posts') || '[]');
-    const postIndex = savedPosts.findIndex(p => p.id === id);
-    if (postIndex !== -1) {
-      savedPosts[postIndex].comments = updatedComments.length;
-      localStorage.setItem('inkwell_posts', JSON.stringify(savedPosts));
-      setPost(savedPosts[postIndex]);
-    }
-    
-    setNewComment('');
-  };
 
-  const handleDeletePost = () => {
-    if (window.confirm('Are you sure you want to delete this post?')) {
-      const savedPosts = JSON.parse(localStorage.getItem('inkwell_posts') || '[]');
-      const filtered = savedPosts.filter(p => p.id !== id);
-      localStorage.setItem('inkwell_posts', JSON.stringify(filtered));
-      navigate('/dashboard');
+    const result = await addComment(commentData);
+    if (result.error) {
+      toast?.error("Failed to add comment");
+    } else {
+      setNewComment("");
+      toast?.success("Comment added successfully");
     }
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
-  const getReadingTime = (content) => {
-    const wordsPerMinute = 200;
-    const words = content.split(' ').length;
-    return Math.ceil(words / wordsPerMinute);
-  };
-
-  if (loading) {
+  if (postLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -152,8 +156,12 @@ const PostView = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Post not found</h1>
-          <p className="text-gray-600 mb-6">The post you're looking for doesn't exist or has been removed.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Post not found
+          </h1>
+          <p className="text-gray-600 mb-6">
+            The post you're looking for doesn't exist or has been removed.
+          </p>
           <Link
             to="/posts"
             className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
@@ -182,60 +190,115 @@ const PostView = () => {
 
         {/* Main Content */}
         <article className="bg-white rounded-lg shadow-sm border border-gray-200">
+          {/* Cover Image */}
+          {post.cover_image && (
+            <div className="w-full h-64 md:h-80 relative">
+              <img
+                src={post.cover_image}
+                alt={post.title}
+                className="w-full h-full object-cover rounded-t-lg"
+              />
+            </div>
+          )}
+
           {/* Article Header */}
           <div className="p-8 border-b border-gray-200">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center">
                 <div className="h-12 w-12 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center mr-4">
                   <span className="text-white font-medium">
-                    {post.authorName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                    {post.profiles?.full_name
+                      ? post.profiles.full_name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                      : post.profiles?.username?.[0]?.toUpperCase() || "U"}
                   </span>
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">{post.authorName}</p>
+                  <p className="font-medium text-gray-900">
+                    {post.profiles?.full_name ||
+                      post.profiles?.username ||
+                      "Unknown Author"}
+                  </p>
                   <div className="flex items-center text-sm text-gray-500">
                     <Calendar className="h-4 w-4 mr-1" />
-                    <span>{formatDate(post.createdAt)}</span>
+                    <span>
+                      {formatDate(post.published_at || post.created_at)}
+                    </span>
                     <span className="mx-2">•</span>
                     <Clock className="h-4 w-4 mr-1" />
-                    <span>{getReadingTime(post.content)} min read</span>
+                    <span>{post.reading_time || 1} min read</span>
                     <span className="mx-2">•</span>
                     <Eye className="h-4 w-4 mr-1" />
-                    <span>{post.views || 0} views</span>
+                    <span>{post.view_count || 0} views</span>
                   </div>
                 </div>
               </div>
 
-              {/* Actions for post owner */}
-              {user.id === post.authorId && (
-                <div className="flex items-center space-x-2">
-                  <Link
-                    to={`/edit/${post.id}`}
-                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Link>
-                  <button
-                    onClick={handleDeletePost}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
+              {/* Three dots menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </button>
+
+                {showDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                    {user && user.id === post.author_id && (
+                      <>
+                        <Link
+                          to={`/edit/${post.id}`}
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowDropdown(false)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Post
+                        </Link>
+                        <button
+                          onClick={() => {
+                            setShowDropdown(false);
+                            handleDeletePost();
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Post
+                        </button>
+                        <hr className="my-1" />
+                      </>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        handleShare();
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share Post
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">{post.title}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              {post.title}
+            </h1>
 
             {/* Tags */}
-            {post.tags && post.tags.length > 0 && (
+            {post.post_tags && post.post_tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-6">
-                {post.tags.map((tag, index) => (
+                {post.post_tags.map((postTag, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-indigo-100 hover:text-indigo-700 cursor-pointer transition-colors"
                   >
-                    #{tag}
+                    #{postTag.tags.name}
                   </span>
                 ))}
               </div>
@@ -243,39 +306,58 @@ const PostView = () => {
 
             {/* Engagement Actions */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-4">
                 <button
                   onClick={handleLike}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                    liked 
-                      ? 'bg-red-50 text-red-600' 
-                      : 'text-gray-600 hover:bg-gray-100'
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                    post.liked
+                      ? "bg-red-50 text-red-600 border border-red-200"
+                      : "text-gray-600 hover:bg-gray-100 border border-gray-200"
                   }`}
                 >
-                  <Heart className={`h-5 w-5 ${liked ? 'fill-current' : ''}`} />
-                  <span>{post.likes || 0}</span>
+                  <Heart
+                    className={`h-5 w-5 ${post.liked ? "fill-current" : ""}`}
+                  />
+                  <span>{post.like_count || 0}</span>
+                  <span className="hidden sm:inline">
+                    {post.like_count === 1 ? "like" : "likes"}
+                  </span>
                 </button>
 
                 <button
                   onClick={handleBookmark}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                    bookmarked 
-                      ? 'bg-yellow-50 text-yellow-600' 
-                      : 'text-gray-600 hover:bg-gray-100'
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                    post.bookmarked
+                      ? "bg-yellow-50 text-yellow-600 border border-yellow-200"
+                      : "text-gray-600 hover:bg-gray-100 border border-gray-200"
                   }`}
                 >
-                  <Bookmark className={`h-5 w-5 ${bookmarked ? 'fill-current' : ''}`} />
+                  <Bookmark
+                    className={`h-5 w-5 ${
+                      post.bookmarked ? "fill-current" : ""
+                    }`}
+                  />
+                  <span className="hidden sm:inline">
+                    {post.bookmarked ? "Saved" : "Save"}
+                  </span>
                 </button>
 
-                <button className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <button
+                  onClick={handleShare}
+                  disabled={sharing}
+                  className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                >
                   <Share2 className="h-5 w-5" />
-                  <span>Share</span>
+                  <span className="hidden sm:inline">
+                    {sharing ? "Sharing..." : "Share"}
+                  </span>
                 </button>
               </div>
 
-              <button className="p-2 text-gray-400 hover:text-gray-600">
-                <MoreHorizontal className="h-5 w-5" />
-              </button>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <MessageSquare className="h-4 w-4" />
+                <span>{comments?.length || 0} comments</span>
+              </div>
             </div>
           </div>
 
@@ -291,68 +373,104 @@ const PostView = () => {
         <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-6 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900">
-              Discussion ({comments.length})
+              Discussion ({comments?.length || 0})
             </h3>
           </div>
 
           {/* Add Comment */}
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-start space-x-4">
-              <div className="h-8 w-8 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-medium">
-                  {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </span>
-              </div>
-              <div className="flex-1">
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Add to the discussion..."
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                />
-                <div className="mt-3 flex justify-end">
-                  <button
-                    onClick={handleAddComment}
-                    disabled={!newComment.trim()}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Submit
-                  </button>
+          {user ? (
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-start space-x-4">
+                <div className="h-8 w-8 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-medium">
+                    {user.user_metadata?.full_name
+                      ? user.user_metadata.full_name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                      : user.email?.[0]?.toUpperCase() || "U"}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Add to the discussion..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                  />
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      onClick={handleAddComment}
+                      disabled={!newComment.trim() || commentsLoading}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {commentsLoading ? "Posting..." : "Submit"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-6 border-b border-gray-200 text-center">
+              <p className="text-gray-600">
+                <Link
+                  to="/auth"
+                  className="text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  Sign in
+                </Link>{" "}
+                to join the discussion
+              </p>
+            </div>
+          )}
 
           {/* Comments List */}
           <div className="divide-y divide-gray-200">
-            {comments.length === 0 ? (
+            {commentsLoading ? (
+              <div className="p-6 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                <p className="mt-2 text-gray-600">Loading comments...</p>
+              </div>
+            ) : comments?.length === 0 ? (
               <div className="p-6 text-center text-gray-500">
                 No comments yet. Be the first to share your thoughts!
               </div>
             ) : (
-              comments.map((comment) => (
+              comments?.map((comment) => (
                 <div key={comment.id} className="p-6">
                   <div className="flex items-start space-x-4">
                     <div className="h-8 w-8 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs font-medium">
-                        {comment.authorName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                        {comment.profiles?.full_name
+                          ? comment.profiles.full_name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                          : comment.profiles?.username?.[0]?.toUpperCase() ||
+                            "U"}
                       </span>
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <p className="font-medium text-gray-900">{comment.authorName}</p>
+                        <p className="font-medium text-gray-900">
+                          {comment.profiles?.full_name ||
+                            comment.profiles?.username ||
+                            "Unknown Author"}
+                        </p>
                         <span className="text-sm text-gray-500">
-                          {formatDate(comment.createdAt)}
+                          {formatDate(comment.created_at)}
                         </span>
                       </div>
                       <p className="text-gray-700 mb-3">{comment.content}</p>
                       <div className="flex items-center space-x-4">
-                        <button className="flex items-center space-x-1 text-sm text-gray-500 hover:text-indigo-600">
+                        <button className="flex items-center space-x-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors">
                           <ThumbsUp className="h-4 w-4" />
-                          <span>{comment.likes}</span>
+                          <span>{comment.like_count || 0}</span>
                         </button>
-                        <button className="text-sm text-gray-500 hover:text-indigo-600">
+                        <button className="text-sm text-gray-500 hover:text-indigo-600 transition-colors">
                           Reply
                         </button>
                       </div>
@@ -364,6 +482,14 @@ const PostView = () => {
           </div>
         </div>
       </div>
+
+      {/* Click outside to close dropdown */}
+      {showDropdown && (
+        <div
+          className="fixed inset-0 z-0"
+          onClick={() => setShowDropdown(false)}
+        />
+      )}
     </div>
   );
 };

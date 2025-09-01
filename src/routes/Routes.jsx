@@ -1,95 +1,185 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-import React from 'react';
+import { createBrowserRouter, Navigate } from "react-router-dom";
+import React from "react";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 // Components
-import Test from '../test/Test';
-import CardList from '../card/CardList';
-import AllPosts from '../components/AllPosts';
-import Home from '../components/Home';
-import PostView from '../components/PostView';
-import SlidingAuth from '../components/auth/SlidingAuth';
-import Dashboard from '../components/Dashboard';
-import CreatePost from '../components/CreatePost';
-import Layout from '../components/Layout';
-import ProtectedRoute from '../components/ProtectedRoute';
+import Test from "../test/Test";
+import CardList from "../card/CardList";
+import AllPosts from "../components/AllPosts";
+import Home from "../components/Home";
+import PostView from "../components/PostView";
+import SlidingAuth from "../components/auth/SlidingAuth";
+import Dashboard from "../components/Dashboard";
+import CreatePost from "../components/CreatePost";
+import Profile from "../components/Profile";
+import Settings from "../components/Settings";
+import Layout from "../components/Layout";
+import ProtectedRoute from "../components/ProtectedRoute";
 
 const router = createBrowserRouter([
+  // Public routes - Home page accessible without authentication
   {
-    path: '/',
-    element: <SlidingAuth />
-  },
-  {
-    path: '/login',
-    element: <SlidingAuth />
-  },
-  {
-    path: '/signup',
-    element: <SlidingAuth />
-  },
-  {
-    path: '/home',
+    path: "/",
     element: (
-      <ProtectedRoute>
+      <ErrorBoundary>
         <Layout>
           <Home />
         </Layout>
-      </ProtectedRoute>
-    )
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
   },
   {
-    path: '/dashboard',
+    path: "/home",
     element: (
-      <ProtectedRoute>
+      <ErrorBoundary>
         <Layout>
-          <Dashboard />
+          <Home />
         </Layout>
-      </ProtectedRoute>
-    )
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
+  },
+  // Authentication routes
+  {
+    path: "/auth",
+    element: <SlidingAuth />,
+    errorElement: <ErrorBoundary />,
   },
   {
-    path: '/create',
+    path: "/login",
+    element: <SlidingAuth />,
+    errorElement: <ErrorBoundary />,
+  },
+  {
+    path: "/signup",
+    element: <SlidingAuth />,
+    errorElement: <ErrorBoundary />,
+  },
+  // Protected routes - Only available after sign-in
+  {
+    path: "/dashboard",
     element: (
-      <ProtectedRoute>
-        <Layout>
-          <CreatePost />
-        </Layout>
-      </ProtectedRoute>
-    )
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
   },
   {
-    path: '/posts',
+    path: "/create",
     element: (
-      <ProtectedRoute>
-        <Layout>
-          <AllPosts />
-        </Layout>
-      </ProtectedRoute>
-    )
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Layout>
+            <CreatePost />
+          </Layout>
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
   },
   {
-    path: '/post/:id',
+    path: "/posts",
     element: (
-      <ProtectedRoute>
-        <Layout>
-          <PostView />
-        </Layout>
-      </ProtectedRoute>
-    )
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Layout>
+            <AllPosts />
+          </Layout>
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
   },
+  // Other protected routes
   {
-    path: '/cards',
+    path: "/edit/:id",
     element: (
-      <ProtectedRoute>
-        <Layout>
-          <CardList />
-        </Layout>
-      </ProtectedRoute>
-    )
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Layout>
+            <CreatePost isEdit />
+          </Layout>
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
   },
   {
-    path: '/test',
-    element: <Test />
-  }
+    path: "/post/:id",
+    element: (
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Layout>
+            <PostView />
+          </Layout>
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
+  },
+  {
+    path: "/profile",
+    element: (
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Layout>
+            <Profile />
+          </Layout>
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
+  },
+  {
+    path: "/settings",
+    element: (
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Layout>
+            <Settings />
+          </Layout>
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
+  },
+  {
+    path: "/cards",
+    element: (
+      <ErrorBoundary>
+        <ProtectedRoute>
+          <Layout>
+            <CardList />
+          </Layout>
+        </ProtectedRoute>
+      </ErrorBoundary>
+    ),
+    errorElement: <ErrorBoundary />,
+  },
+  {
+    path: "/test",
+    element: <Test />,
+    errorElement: <ErrorBoundary />,
+  },
+  {
+    path: "*",
+    element: (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
+          <p className="text-gray-600 mb-6">Page not found</p>
+          <Navigate to="/" replace />
+        </div>
+      </div>
+    ),
+    errorElement: <ErrorBoundary />,
+  },
 ]);
 
 export default router;
