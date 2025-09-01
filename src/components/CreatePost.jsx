@@ -30,6 +30,24 @@ import {
   Settings,
   Upload,
   X,
+  Heading1,
+  Heading2,
+  Heading3,
+  Strikethrough,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  CheckSquare,
+  Minus,
+  Plus,
+  Type,
+  Hash,
+  AtSign,
+  Calendar,
+  Clock,
+  Zap,
+  HelpCircle,
 } from "lucide-react";
 
 const CreatePost = ({ isEdit = false }) => {
@@ -55,6 +73,11 @@ const CreatePost = ({ isEdit = false }) => {
   const [wordCount, setWordCount] = useState(0);
   const [readTime, setReadTime] = useState(0);
   const [imageUploading, setImageUploading] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const [lastContent, setLastContent] = useState("");
 
   const categories = [
     "Technology",
@@ -73,27 +96,261 @@ const CreatePost = ({ isEdit = false }) => {
     "Review",
   ];
 
+  // Common emojis for quick insertion
+  const commonEmojis = [
+    "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
+    "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚",
+    "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩",
+    "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣",
+    "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬",
+    "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗",
+    "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😯", "😦", "😧",
+    "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴", "🤢",
+    "🤮", "🤧", "😷", "🤒", "🤕", "🤑", "🤠", "💩", "👻", "👽",
+    "🤖", "😈", "👿", "👹", "👺", "💀", "☠️", "👻", "👽", "🤖"
+  ];
+
+  const insertEmoji = (emoji) => {
+    const textarea = document.getElementById("content-editor");
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    const updatedContent = before + emoji + after;
+    
+    setFormData({ ...formData, content: updatedContent });
+    setShowEmojiPicker(false);
+    
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+    }, 0);
+  };
+
+  // Undo/Redo functionality
+  const handleUndo = () => {
+    if (undoStack.length > 0) {
+      const previousContent = undoStack[undoStack.length - 1];
+      const newUndoStack = undoStack.slice(0, -1);
+      
+      setRedoStack([...redoStack, formData.content]);
+      setUndoStack(newUndoStack);
+      setFormData({ ...formData, content: previousContent });
+    }
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length > 0) {
+      const nextContent = redoStack[redoStack.length - 1];
+      const newRedoStack = redoStack.slice(0, -1);
+      
+      setUndoStack([...undoStack, formData.content]);
+      setRedoStack(newRedoStack);
+      setFormData({ ...formData, content: nextContent });
+    }
+  };
+
+  const saveToUndoStack = (content) => {
+    if (content !== lastContent) {
+      setUndoStack([...undoStack, lastContent]);
+      setLastContent(content);
+      setRedoStack([]); // Clear redo stack when new content is added
+    }
+  };
+
+  // Enhanced toolbar with more GitHub Markdown features
   const toolbarButtons = [
-    { icon: Bold, label: "Bold", syntax: "**text**", shortcut: "Ctrl+B" },
-    { icon: Italic, label: "Italic", syntax: "*text*", shortcut: "Ctrl+I" },
-    { icon: Link, label: "Link", syntax: "[text](url)", shortcut: "Ctrl+K" },
-    { icon: Code, label: "Inline Code", syntax: "`code`", shortcut: "Ctrl+`" },
-    { icon: List, label: "Bullet List", syntax: "- item", shortcut: null },
+    // Headings
+    { 
+      icon: Heading1, 
+      label: "Heading 1", 
+      syntax: "# ", 
+      shortcut: "Ctrl+1",
+      category: "headings"
+    },
+    { 
+      icon: Heading2, 
+      label: "Heading 2", 
+      syntax: "## ", 
+      shortcut: "Ctrl+2",
+      category: "headings"
+    },
+    { 
+      icon: Heading3, 
+      label: "Heading 3", 
+      syntax: "### ", 
+      shortcut: "Ctrl+3",
+      category: "headings"
+    },
+    // Text formatting
+    { 
+      icon: Bold, 
+      label: "Bold", 
+      syntax: "**text**", 
+      shortcut: "Ctrl+B",
+      category: "formatting"
+    },
+    { 
+      icon: Italic, 
+      label: "Italic", 
+      syntax: "*text*", 
+      shortcut: "Ctrl+I",
+      category: "formatting"
+    },
+    { 
+      icon: Strikethrough, 
+      label: "Strikethrough", 
+      syntax: "~~text~~", 
+      shortcut: "Ctrl+Shift+X",
+      category: "formatting"
+    },
+    { 
+      icon: Code, 
+      label: "Inline Code", 
+      syntax: "`code`", 
+      shortcut: "Ctrl+`",
+      category: "formatting"
+    },
+    // Links and media
+    { 
+      icon: Link, 
+      label: "Link", 
+      syntax: "[text](url)", 
+      shortcut: "Ctrl+K",
+      category: "media"
+    },
+    { 
+      icon: Image, 
+      label: "Image", 
+      syntax: "![alt](url)", 
+      shortcut: "Ctrl+Shift+I",
+      category: "media"
+    },
+    // Lists
+    { 
+      icon: List, 
+      label: "Bullet List", 
+      syntax: "- item", 
+      shortcut: "Ctrl+Shift+L",
+      category: "lists"
+    },
     {
       icon: ListOrdered,
       label: "Numbered List",
       syntax: "1. item",
-      shortcut: null,
+      shortcut: "Ctrl+Shift+O",
+      category: "lists"
     },
-    { icon: Quote, label: "Quote", syntax: "> quote", shortcut: null },
-    { icon: Image, label: "Image", syntax: "![alt](url)", shortcut: null },
+    {
+      icon: CheckSquare,
+      label: "Task List",
+      syntax: "- [ ] task",
+      shortcut: "Ctrl+Shift+T",
+      category: "lists"
+    },
+    // Block elements
+    { 
+      icon: Quote, 
+      label: "Quote", 
+      syntax: "> quote", 
+      shortcut: "Ctrl+Shift+Q",
+      category: "blocks"
+    },
     {
       icon: Table,
       label: "Table",
       syntax: "| Col1 | Col2 |\n|------|------|\n| Val1 | Val2 |",
-      shortcut: null,
+      shortcut: "Ctrl+Shift+M",
+      category: "blocks"
+    },
+    {
+      icon: Code,
+      label: "Code Block",
+      syntax: "```\ncode block\n```",
+      shortcut: "Ctrl+Shift+C",
+      category: "blocks"
+    },
+    // Special elements
+    {
+      icon: Hash,
+      label: "Horizontal Rule",
+      syntax: "---",
+      shortcut: "Ctrl+Shift+H",
+      category: "special"
+    },
+    {
+      icon: AtSign,
+      label: "Mention",
+      syntax: "@username",
+      shortcut: "Ctrl+Shift+@",
+      category: "special"
+    },
+    {
+      icon: Type,
+      label: "Emoji",
+      syntax: ":smile:",
+      shortcut: "Ctrl+Shift+E",
+      category: "special"
     },
   ];
+
+  // Keyboard shortcuts mapping
+  const shortcuts = {
+    "Ctrl+1": () => insertMarkdown("# "),
+    "Ctrl+2": () => insertMarkdown("## "),
+    "Ctrl+3": () => insertMarkdown("### "),
+    "Ctrl+B": () => insertMarkdown("**text**"),
+    "Ctrl+I": () => insertMarkdown("*text*"),
+    "Ctrl+Shift+X": () => insertMarkdown("~~text~~"),
+    "Ctrl+`": () => insertMarkdown("`code`"),
+    "Ctrl+K": () => insertMarkdown("[text](url)"),
+    "Ctrl+Shift+I": () => insertMarkdown("![alt](url)"),
+    "Ctrl+Shift+L": () => insertMarkdown("- item"),
+    "Ctrl+Shift+O": () => insertMarkdown("1. item"),
+    "Ctrl+Shift+T": () => insertMarkdown("- [ ] task"),
+    "Ctrl+Shift+Q": () => insertMarkdown("> quote"),
+    "Ctrl+Shift+M": () => insertMarkdown("| Col1 | Col2 |\n|------|------|\n| Val1 | Val2 |"),
+    "Ctrl+Shift+C": () => insertMarkdown("```\ncode block\n```"),
+    "Ctrl+Shift+H": () => insertMarkdown("---"),
+    "Ctrl+Shift+@": () => insertMarkdown("@username"),
+    "Ctrl+Shift+E": () => setShowEmojiPicker(!showEmojiPicker),
+    "Ctrl+Z": () => handleUndo(),
+    "Ctrl+Y": () => handleRedo(),
+    "Ctrl+S": () => handleSave(),
+    "Ctrl+Enter": () => handleSave(true),
+    "Tab": (e) => {
+      e.preventDefault();
+      insertMarkdown("  ");
+    },
+    "Shift+Tab": (e) => {
+      e.preventDefault();
+      // Remove 2 spaces at cursor position
+      const textarea = document.getElementById("content-editor");
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+      
+      if (start === end) {
+        // No selection, just remove spaces at cursor
+        const beforeCursor = text.substring(0, start);
+        const afterCursor = text.substring(start);
+        const lines = beforeCursor.split('\n');
+        const currentLine = lines[lines.length - 1];
+        
+        if (currentLine.startsWith('  ')) {
+          const newBeforeCursor = beforeCursor.slice(0, -2);
+          const updatedContent = newBeforeCursor + afterCursor;
+          setFormData({ ...formData, content: updatedContent });
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start - 2, start - 2);
+          }, 0);
+        }
+      }
+    }
+  };
 
   const insertMarkdown = (syntax) => {
     const textarea = document.getElementById("content-editor");
@@ -103,25 +360,50 @@ const CreatePost = ({ isEdit = false }) => {
     const selectedText = text.substring(start, end);
 
     let newText;
+    let newCursorPosition;
+
+    // Handle different syntax patterns
     if (syntax.includes("text")) {
       newText = syntax.replace("text", selectedText || "text");
+      newCursorPosition = start + syntax.indexOf("text") + (selectedText ? selectedText.length : 4);
     } else if (syntax.includes("url")) {
       newText = syntax.replace("url", "https://example.com");
+      newCursorPosition = start + syntax.indexOf("url") + 19; // length of https://example.com
+    } else if (syntax.includes("item")) {
+      newText = syntax.replace("item", selectedText || "item");
+      newCursorPosition = start + syntax.indexOf("item") + (selectedText ? selectedText.length : 4);
+    } else if (syntax.includes("task")) {
+      newText = syntax.replace("task", selectedText || "task");
+      newCursorPosition = start + syntax.indexOf("task") + (selectedText ? selectedText.length : 4);
+    } else if (syntax.includes("quote")) {
+      newText = syntax.replace("quote", selectedText || "quote");
+      newCursorPosition = start + syntax.indexOf("quote") + (selectedText ? selectedText.length : 5);
+    } else if (syntax.includes("code block")) {
+      newText = syntax.replace("code block", selectedText || "code block");
+      newCursorPosition = start + syntax.indexOf("code block") + (selectedText ? selectedText.length : 10);
+    } else if (syntax.includes("alt")) {
+      newText = syntax.replace("alt", selectedText || "alt");
+      newCursorPosition = start + syntax.indexOf("alt") + (selectedText ? selectedText.length : 3);
+    } else if (syntax.includes("username")) {
+      newText = syntax.replace("username", selectedText || "username");
+      newCursorPosition = start + syntax.indexOf("username") + (selectedText ? selectedText.length : 8);
     } else {
       newText = syntax;
+      newCursorPosition = start + newText.length;
     }
 
     const before = text.substring(0, start);
     const after = text.substring(end);
     const updatedContent = before + newText + after;
 
+    // Save to undo stack before updating
+    saveToUndoStack(formData.content);
     setFormData({ ...formData, content: updatedContent });
 
     // Focus and set cursor position
     setTimeout(() => {
       textarea.focus();
-      const newPosition = start + newText.length;
-      textarea.setSelectionRange(newPosition, newPosition);
+      textarea.setSelectionRange(newCursorPosition, newCursorPosition);
     }, 0);
   };
 
@@ -346,31 +628,71 @@ const CreatePost = ({ isEdit = false }) => {
     setReadTime(Math.ceil(words.length / 200)); // 200 words per minute
   }, [formData.content]);
 
+  // Enhanced keyboard handler
   const handleKeyDown = (e) => {
-    // Handle keyboard shortcuts
-    if (e.ctrlKey || e.metaKey) {
-      switch (e.key) {
-        case "b":
-          e.preventDefault();
-          insertMarkdown("**text**");
-          break;
-        case "i":
-          e.preventDefault();
-          insertMarkdown("*text*");
-          break;
-        case "k":
-          e.preventDefault();
-          insertMarkdown("[text](url)");
-          break;
-        case "`":
-          e.preventDefault();
-          insertMarkdown("`code`");
-          break;
-        case "s":
-          e.preventDefault();
-          handleSave();
-          break;
-      }
+    const key = e.key;
+    const ctrlKey = e.ctrlKey || e.metaKey;
+    const shiftKey = e.shiftKey;
+    
+    // Build shortcut key
+    let shortcutKey = "";
+    if (ctrlKey) shortcutKey += "Ctrl+";
+    if (shiftKey) shortcutKey += "Shift+";
+    shortcutKey += key.toUpperCase();
+
+    // Check if shortcut exists
+    if (shortcuts[shortcutKey]) {
+      e.preventDefault();
+      shortcuts[shortcutKey](e);
+      return;
+    }
+
+    // Handle special cases
+    if (key === "Tab") {
+      e.preventDefault();
+      insertMarkdown("  ");
+    }
+  };
+
+  // Content change handler with undo support
+  const handleContentChange = (e) => {
+    const newContent = e.target.value;
+    saveToUndoStack(formData.content);
+    setFormData({ ...formData, content: newContent });
+  };
+
+  // Auto-complete functionality
+  const handleAutoComplete = (e) => {
+    const textarea = e.target;
+    const value = textarea.value;
+    const cursorPos = textarea.selectionStart;
+    
+    // Auto-complete for common patterns
+    const beforeCursor = value.substring(0, cursorPos);
+    const lastChar = beforeCursor.charAt(beforeCursor.length - 1);
+    
+    // Auto-complete parentheses and brackets
+    const autoCompletePairs = {
+      '(': ')',
+      '[': ']',
+      '{': '}',
+      '"': '"',
+      "'": "'",
+      '`': '`'
+    };
+    
+    if (autoCompletePairs[lastChar]) {
+      const closingChar = autoCompletePairs[lastChar];
+      const afterCursor = value.substring(cursorPos);
+      const newValue = beforeCursor + closingChar + afterCursor;
+      
+      saveToUndoStack(formData.content);
+      setFormData({ ...formData, content: newValue });
+      
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(cursorPos, cursorPos);
+      }, 0);
     }
   };
 
@@ -380,100 +702,105 @@ const CreatePost = ({ isEdit = false }) => {
         isFullscreen ? "fixed inset-0 z-50" : ""
       }`}
     >
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 border-b border-slate-700 sticky top-0 z-40 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-4">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-6">
               {!isFullscreen && (
                 <button
                   onClick={() => navigate(-1)}
-                  className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+                  className="flex items-center text-slate-300 hover:text-white transition-all duration-200 hover:bg-slate-800 px-3 py-2 rounded-lg"
                 >
                   <ArrowLeft className="h-5 w-5 mr-2" />
-                  Back
+                  <span className="font-medium">Back</span>
                 </button>
               )}
 
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <FileText className="h-4 w-4" />
-                <span>{wordCount} words</span>
-                <span>•</span>
-                <span>{readTime} min read</span>
+              <div className="flex items-center space-x-3 text-sm text-slate-300 bg-slate-800/50 px-4 py-2 rounded-lg backdrop-blur-sm">
+                <FileText className="h-4 w-4 text-blue-400" />
+                <span className="font-medium">{wordCount} words</span>
+                <div className="w-1 h-1 bg-slate-500 rounded-full"></div>
+                <span className="font-medium">{readTime} min read</span>
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
-              {/* View Mode Toggle */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center space-x-4">
+              {/* Enhanced View Mode Toggle */}
+              <div className="flex items-center bg-slate-800/50 backdrop-blur-sm rounded-xl p-1 border border-slate-700">
                 <button
                   onClick={() => setPreviewMode("edit")}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  className={`px-4 py-2 text-sm rounded-lg transition-all duration-200 font-medium ${
                     previewMode === "edit"
-                      ? "bg-white shadow-sm text-gray-900"
-                      : "text-gray-600"
+                      ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700"
                   }`}
                 >
+                  <EyeOff className="h-4 w-4 inline mr-2" />
                   Edit
                 </button>
                 <button
                   onClick={() => setPreviewMode("split")}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  className={`px-4 py-2 text-sm rounded-lg transition-all duration-200 font-medium ${
                     previewMode === "split"
-                      ? "bg-white shadow-sm text-gray-900"
-                      : "text-gray-600"
+                      ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700"
                   }`}
                 >
+                  <Settings className="h-4 w-4 inline mr-2" />
                   Split
                 </button>
                 <button
                   onClick={() => setPreviewMode("preview")}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  className={`px-4 py-2 text-sm rounded-lg transition-all duration-200 font-medium ${
                     previewMode === "preview"
-                      ? "bg-white shadow-sm text-gray-900"
-                      : "text-gray-600"
+                      ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700"
                   }`}
                 >
+                  <Eye className="h-4 w-4 inline mr-2" />
                   Preview
                 </button>
               </div>
 
               <button
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-3 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-all duration-200 border border-slate-700 hover:border-slate-600"
               >
                 {isFullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
+                  <Minimize2 className="h-5 w-5" />
                 ) : (
-                  <Maximize2 className="h-4 w-4" />
+                  <Maximize2 className="h-5 w-5" />
                 )}
               </button>
 
-              <button
-                onClick={handleSave}
-                disabled={
-                  loading || !formData.title.trim() || !formData.content.trim()
-                }
-                className="btn btn-primary disabled:opacity-50"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {loading ? "Saving..." : isEdit ? "Update" : "Save Draft"}
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handleSave}
+                  disabled={
+                    loading || !formData.title.trim() || !formData.content.trim()
+                  }
+                  className="bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {loading ? "Saving..." : isEdit ? "Update" : "Save Draft"}
+                </button>
 
-              <button
-                onClick={() => handleSave(true)}
-                disabled={
-                  loading || !formData.title.trim() || !formData.content.trim()
-                }
-                className="btn btn-primary bg-green-600 hover:bg-green-700 disabled:opacity-50"
-              >
-                <Globe className="h-4 w-4 mr-2" />
-                {loading
-                  ? "Publishing..."
-                  : isEdit
-                  ? "Update & Publish"
-                  : "Publish"}
-              </button>
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={
+                    loading || !formData.title.trim() || !formData.content.trim()
+                  }
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center"
+                >
+                  <Globe className="h-4 w-4 mr-2" />
+                  {loading
+                    ? "Publishing..."
+                    : isEdit
+                    ? "Update & Publish"
+                    : "Publish"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -481,85 +808,91 @@ const CreatePost = ({ isEdit = false }) => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700">{error}</p>
+          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-xl shadow-lg">
+            <p className="text-red-700 font-medium">{error}</p>
           </div>
         )}
 
-        {/* Title and Metadata */}
-        <div className="mb-6 space-y-4">
-          <input
-            type="text"
-            value={formData.title}
-            onChange={(e) =>
-              setFormData({ ...formData, title: e.target.value })
-            }
-            placeholder="Enter your post title..."
-            className="w-full text-3xl font-bold border-none outline-none bg-transparent placeholder-gray-400"
-            style={{ fontFamily: "IBM Plex Mono, monospace" }}
-          />
+        {/* Enhanced Title and Metadata */}
+        <div className="mb-8 space-y-6">
+          <div className="bg-gradient-to-r from-slate-50 to-blue-50 p-8 rounded-2xl shadow-lg border border-slate-200">
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) =>
+                setFormData({ ...formData, title: e.target.value })
+              }
+              placeholder="Enter your post title..."
+              className="w-full text-4xl font-bold border-none outline-none bg-transparent placeholder-slate-400 text-slate-800"
+              style={{ fontFamily: "IBM Plex Mono, monospace" }}
+            />
+          </div>
 
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyPress={handleTagKeyPress}
-                placeholder="Add tags (e.g., react, javascript, tutorial)..."
-                className="input text-sm w-64"
-              />
-              <TagIcon className="h-4 w-4 text-gray-400" />
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+            <div className="flex flex-wrap gap-4 items-center mb-4">
+              <div className="flex items-center space-x-3 flex-1 min-w-0">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyPress={handleTagKeyPress}
+                    placeholder="Add tags (e.g., react, javascript, tutorial)..."
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 text-sm"
+                  />
+                  <TagIcon className="h-5 w-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2" />
+                </div>
+              </div>
             </div>
 
             {formData.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-4">
                 {formData.tags.map((tag, index) => (
                   <span
                     key={index}
-                    className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                    className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm rounded-full shadow-md hover:shadow-lg transition-all duration-200"
                   >
-                    #{tag}
+                    <span className="font-medium">#{tag}</span>
                     <button
                       onClick={() => removeTag(index)}
-                      className="ml-1 text-blue-600 hover:text-blue-800"
+                      className="ml-2 text-white hover:text-red-200 transition-colors"
                     >
-                      ×
+                      <X className="h-4 w-4" />
                     </button>
                   </span>
                 ))}
               </div>
             )}
-          </div>
 
-          {/* Quick Tag Suggestions */}
-          <div className="flex flex-wrap gap-2">
-            <span className="text-sm text-gray-600">Popular tags:</span>
-            {categories.slice(0, 8).map((cat) => (
-              <button
-                key={cat}
-                onClick={() => {
-                  const tag = cat.toLowerCase().replace(/\s+/g, "");
-                  if (
-                    !formData.tags.includes(tag) &&
-                    formData.tags.length < 10
-                  ) {
-                    setFormData({
-                      ...formData,
-                      tags: [...formData.tags, tag],
-                    });
-                  }
-                }}
-                className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md hover:bg-blue-100 hover:text-blue-700 transition-colors"
-              >
-                #{cat.toLowerCase().replace(/\s+/g, "")}
-              </button>
-            ))}
+            {/* Enhanced Quick Tag Suggestions */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-sm text-slate-600 font-medium">Popular tags:</span>
+              {categories.slice(0, 8).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    const tag = cat.toLowerCase().replace(/\s+/g, "");
+                    if (
+                      !formData.tags.includes(tag) &&
+                      formData.tags.length < 10
+                    ) {
+                      setFormData({
+                        ...formData,
+                        tags: [...formData.tags, tag],
+                      });
+                    }
+                  }}
+                  className="text-xs px-3 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-600 hover:text-white transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                >
+                  #{cat.toLowerCase().replace(/\s+/g, "")}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Editor Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Enhanced Editor Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Editor Pane */}
           {(previewMode === "edit" || previewMode === "split") && (
             <div
@@ -567,36 +900,209 @@ const CreatePost = ({ isEdit = false }) => {
                 previewMode === "split" ? "lg:col-span-6" : "lg:col-span-9"
               } space-y-4`}
             >
-              {/* Toolbar */}
-              <div className="bg-white border border-gray-200 rounded-lg p-3">
-                <div className="flex flex-wrap gap-2">
-                  {toolbarButtons.map((button, index) => (
-                    <button
-                      key={index}
-                      onClick={() => insertMarkdown(button.syntax)}
-                      className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
-                      title={`${button.label} ${
-                        button.shortcut ? `(${button.shortcut})` : ""
-                      }`}
-                    >
-                      <button.icon className="h-4 w-4" />
-                    </button>
-                  ))}
+              {/* Enhanced Toolbar */}
+              <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-2xl p-6 markdown-toolbar shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-slate-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    ✨ Markdown Tools
+                  </h3>
+                  <button
+                    onClick={() => setShowShortcuts(!showShortcuts)}
+                    className="flex items-center text-sm text-slate-600 hover:text-slate-800 bg-white px-4 py-2 rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
+                    title="Show/Hide Shortcuts"
+                  >
+                    <Zap className="h-4 w-4 mr-2 text-yellow-500" />
+                    <span className="font-medium">Shortcuts</span>
+                  </button>
                 </div>
+                
+                {/* Shortcuts Panel */}
+                {showShortcuts && (
+                  <div className="mb-6 p-4 bg-white rounded-xl shortcuts-panel shadow-lg border border-slate-200">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                      {toolbarButtons.map((button, index) => (
+                        <div key={index} className="flex justify-between items-center p-1">
+                          <span className="text-gray-600">{button.label}</span>
+                          <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-gray-700">
+                            {button.shortcut}
+                          </kbd>
+                        </div>
+                      ))}
+                      <div className="flex justify-between items-center p-1">
+                        <span className="text-gray-600">Save Draft</span>
+                        <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-gray-700">
+                          Ctrl+S
+                        </kbd>
+                      </div>
+                      <div className="flex justify-between items-center p-1">
+                        <span className="text-gray-600">Publish</span>
+                        <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-gray-700">
+                          Ctrl+Enter
+                        </kbd>
+                      </div>
+                      <div className="flex justify-between items-center p-1">
+                        <span className="text-gray-600">Undo</span>
+                        <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-gray-700">
+                          Ctrl+Z
+                        </kbd>
+                      </div>
+                      <div className="flex justify-between items-center p-1">
+                        <span className="text-gray-600">Redo</span>
+                        <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-gray-700">
+                          Ctrl+Y
+                        </kbd>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Categorized Toolbar */}
+                <div className="space-y-4">
+                  {/* Headings */}
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-semibold text-slate-700 w-20 bg-white px-3 py-1 rounded-lg shadow-sm">Headings:</span>
+                    <div className="flex space-x-2">
+                      {toolbarButtons.filter(btn => btn.category === "headings").map((button, index) => (
+                        <button
+                          key={index}
+                          onClick={() => insertMarkdown(button.syntax)}
+                          className="p-3 text-slate-600 hover:text-slate-800 hover:bg-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md border border-slate-200 hover:border-slate-300"
+                          title={`${button.label} (${button.shortcut})`}
+                        >
+                          <button.icon className="h-5 w-5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Text Formatting */}
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-semibold text-slate-700 w-20 bg-white px-3 py-1 rounded-lg shadow-sm">Format:</span>
+                    <div className="flex space-x-2">
+                      {toolbarButtons.filter(btn => btn.category === "formatting").map((button, index) => (
+                        <button
+                          key={index}
+                          onClick={() => insertMarkdown(button.syntax)}
+                          className="p-3 text-slate-600 hover:text-slate-800 hover:bg-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md border border-slate-200 hover:border-slate-300"
+                          title={`${button.label} (${button.shortcut})`}
+                        >
+                          <button.icon className="h-5 w-5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Lists */}
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-semibold text-slate-700 w-20 bg-white px-3 py-1 rounded-lg shadow-sm">Lists:</span>
+                    <div className="flex space-x-2">
+                      {toolbarButtons.filter(btn => btn.category === "lists").map((button, index) => (
+                        <button
+                          key={index}
+                          onClick={() => insertMarkdown(button.syntax)}
+                          className="p-3 text-slate-600 hover:text-slate-800 hover:bg-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md border border-slate-200 hover:border-slate-300"
+                          title={`${button.label} (${button.shortcut})`}
+                        >
+                          <button.icon className="h-5 w-5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Media & Links */}
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-semibold text-slate-700 w-20 bg-white px-3 py-1 rounded-lg shadow-sm">Media:</span>
+                    <div className="flex space-x-2">
+                      {toolbarButtons.filter(btn => btn.category === "media").map((button, index) => (
+                        <button
+                          key={index}
+                          onClick={() => insertMarkdown(button.syntax)}
+                          className="p-3 text-slate-600 hover:text-slate-800 hover:bg-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md border border-slate-200 hover:border-slate-300"
+                          title={`${button.label} (${button.shortcut})`}
+                        >
+                          <button.icon className="h-5 w-5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Blocks */}
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-semibold text-slate-700 w-20 bg-white px-3 py-1 rounded-lg shadow-sm">Blocks:</span>
+                    <div className="flex space-x-2">
+                      {toolbarButtons.filter(btn => btn.category === "blocks").map((button, index) => (
+                        <button
+                          key={index}
+                          onClick={() => insertMarkdown(button.syntax)}
+                          className="p-3 text-slate-600 hover:text-slate-800 hover:bg-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md border border-slate-200 hover:border-slate-300"
+                          title={`${button.label} (${button.shortcut})`}
+                        >
+                          <button.icon className="h-5 w-5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Special */}
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-semibold text-slate-700 w-20 bg-white px-3 py-1 rounded-lg shadow-sm">Special:</span>
+                    <div className="flex space-x-2">
+                      {toolbarButtons.filter(btn => btn.category === "special").map((button, index) => (
+                        <button
+                          key={index}
+                          onClick={() => insertMarkdown(button.syntax)}
+                          className="p-3 text-slate-600 hover:text-slate-800 hover:bg-white rounded-xl transition-all duration-200 shadow-sm hover:shadow-md border border-slate-200 hover:border-slate-300"
+                          title={`${button.label} (${button.shortcut})`}
+                        >
+                          <button.icon className="h-5 w-5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Enhanced Emoji Picker */}
+                {showEmojiPicker && (
+                  <div className="mt-4 p-4 bg-white rounded-xl emoji-picker shadow-lg border border-slate-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-slate-700">🎨 Quick Emojis</h4>
+                      <button
+                        onClick={() => setShowEmojiPicker(false)}
+                        className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-10 gap-2 max-h-40 overflow-y-auto">
+                      {commonEmojis.map((emoji, index) => (
+                        <button
+                          key={index}
+                          onClick={() => insertEmoji(emoji)}
+                          className="p-2 text-xl hover:bg-gradient-to-r hover:from-blue-100 hover:to-purple-100 rounded-lg transition-all duration-200 hover:scale-110"
+                          title={emoji}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Content Editor */}
-              <div className="bg-white border border-gray-200 rounded-lg">
+              {/* Enhanced Content Editor */}
+              <div className="bg-white border border-slate-200 rounded-2xl markdown-editor shadow-lg overflow-hidden">
+                <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4 border-b border-slate-200">
+                  <h3 className="text-lg font-semibold text-slate-800">📝 Content Editor</h3>
+                </div>
                 <textarea
                   id="content-editor"
                   value={formData.content}
-                  onChange={(e) =>
-                    setFormData({ ...formData, content: e.target.value })
-                  }
+                  onChange={handleContentChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Write your post content in Markdown..."
-                  className="w-full h-96 p-6 border-none outline-none resize-none bg-transparent"
-                  style={{ fontFamily: "IBM Plex Mono, monospace" }}
+                  onKeyUp={handleAutoComplete}
+                  placeholder="Write your post content in Markdown... Start with a heading or paragraph to see the magic happen! ✨"
+                  className="w-full h-96 p-8 border-none outline-none resize-none bg-transparent text-slate-700 placeholder-slate-400"
+                  style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: "16px", lineHeight: "1.6" }}
                 />
               </div>
             </div>
@@ -609,11 +1115,11 @@ const CreatePost = ({ isEdit = false }) => {
                 previewMode === "split" ? "lg:col-span-6" : "lg:col-span-9"
               }`}
             >
-              <div className="bg-white border border-gray-200 rounded-lg">
-                <div className="p-4 border-b border-gray-200 bg-gray-50">
-                  <h3 className="text-sm font-medium text-gray-900">Preview</h3>
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-slate-200">
+                  <h3 className="text-lg font-semibold text-slate-800">👁️ Live Preview</h3>
                 </div>
-                <div className="p-6 prose prose-lg max-w-none">
+                <div className="p-8 prose prose-lg max-w-none">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
@@ -644,15 +1150,17 @@ const CreatePost = ({ isEdit = false }) => {
             </div>
           )}
 
-          {/* Sidebar */}
+          {/* Enhanced Sidebar */}
           <div
             className={`${
               previewMode === "split" ? "hidden" : "lg:col-span-3"
             } space-y-6`}
           >
-            {/* Excerpt */}
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">Post Excerpt</h3>
+            {/* Enhanced Excerpt */}
+            <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+              <h3 className="text-lg font-bold mb-4 text-slate-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                📝 Post Excerpt
+              </h3>
               <textarea
                 value={formData.excerpt}
                 onChange={(e) =>
@@ -660,65 +1168,218 @@ const CreatePost = ({ isEdit = false }) => {
                 }
                 placeholder="Brief description of your post..."
                 rows={3}
-                className="input w-full"
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 resize-none"
               />
-              <p className="text-sm text-gray-500 mt-2">
-                {formData.excerpt.length}/160 characters
-              </p>
+              <div className="flex justify-between items-center mt-3">
+                <p className="text-sm text-slate-500">
+                  {formData.excerpt.length}/160 characters
+                </p>
+                <div className={`w-16 h-2 rounded-full ${
+                  formData.excerpt.length > 140 ? 'bg-red-200' : 
+                  formData.excerpt.length > 120 ? 'bg-yellow-200' : 'bg-green-200'
+                }`}>
+                  <div 
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      formData.excerpt.length > 140 ? 'bg-red-500' : 
+                      formData.excerpt.length > 120 ? 'bg-yellow-500' : 'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min((formData.excerpt.length / 160) * 100, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
             </div>
 
-            {/* Cover Image */}
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">Banner Image</h3>
+            {/* Enhanced Cover Image */}
+            <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+              <h3 className="text-lg font-bold mb-4 text-slate-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                🖼️ Banner Image
+              </h3>
               {formData.coverImage ? (
-                <div className="relative">
+                <div className="relative group">
                   <img
                     src={formData.coverImage}
                     alt="Cover"
-                    className="w-full h-48 object-cover rounded-lg"
+                    className="w-full h-48 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-all duration-300"
                   />
                   <button
                     onClick={removeCoverImage}
-                    className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 transition-colors"
+                    className="absolute top-3 right-3 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-all duration-200 shadow-lg hover:shadow-xl opacity-0 group-hover:opacity-100"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
-                <div>
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-slate-400 transition-colors">
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleImageUpload}
                     disabled={imageUploading}
-                    className="input w-full"
+                    className="hidden"
+                    id="cover-image-input"
                   />
-                  <p className="text-sm text-gray-500 mt-2">
-                    Upload a banner image (max 5MB).
-                  </p>
+                  <label htmlFor="cover-image-input" className="cursor-pointer">
+                    <Upload className="h-12 w-12 text-slate-400 mx-auto mb-3" />
+                    <p className="text-slate-600 font-medium mb-1">
+                      {imageUploading ? "Uploading..." : "Click to upload banner image"}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      PNG, JPG, GIF up to 5MB
+                    </p>
+                  </label>
                 </div>
               )}
             </div>
 
-            {/* Markdown Help */}
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">Markdown Guide</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span># Heading 1</span>
-                  <code className="text-xs">## H2</code>
+            {/* Enhanced Markdown Guide */}
+            <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+              <h3 className="text-lg font-bold mb-6 text-slate-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                📚 Markdown Guide
+              </h3>
+                              <div className="space-y-4 text-sm">
+                  {/* Headings */}
+                  <div>
+                    <h4 className="font-bold text-slate-700 mb-3 text-base">📋 Headings</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-100">
+                        <span className="font-medium text-slate-700"># Heading 1</span>
+                        <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+1</kbd>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-100">
+                        <span className="font-medium text-slate-700">## Heading 2</span>
+                        <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+2</kbd>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-100">
+                        <span className="font-medium text-slate-700">### Heading 3</span>
+                        <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+3</kbd>
+                      </div>
+                    </div>
+                  </div>
+
+                {/* Text Formatting */}
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-3 text-base">🎨 Text Formatting</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                      <span className="font-bold text-slate-700">**Bold**</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+B</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                      <span className="italic text-slate-700">*Italic*</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+I</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                      <span className="line-through text-slate-700">~~Strikethrough~~</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+X</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                      <code className="bg-slate-200 px-2 py-1 rounded-lg text-slate-700">`Code`</code>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+`</kbd>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="font-bold">**Bold**</span>
-                  <code className="text-xs">**text**</code>
+
+                {/* Lists */}
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-3 text-base">📝 Lists</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+                      <span className="font-medium text-slate-700">- Bullet List</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+L</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+                      <span className="font-medium text-slate-700">1. Numbered List</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+O</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+                      <span className="font-medium text-slate-700">- [ ] Task List</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+T</kbd>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="italic">*Italic*</span>
-                  <code className="text-xs">*text*</code>
+
+                {/* Links & Media */}
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-3 text-base">🔗 Links & Media</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                      <span className="text-blue-600 underline font-medium">[Link](url)</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+K</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                      <span className="font-medium text-slate-700">![Image](url)</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+I</kbd>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="underline">Link</span>
-                  <code className="text-xs">[text](url)</code>
+
+                {/* Blocks */}
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-3 text-base">📦 Blocks</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-100">
+                      <span className="border-l-4 border-yellow-400 pl-2 font-medium text-slate-700">&gt; Quote</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+Q</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-100">
+                      <span className="font-medium text-slate-700">``` Code Block ```</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+C</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-100">
+                      <span className="font-medium text-slate-700">| Table |</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+M</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Special */}
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-3 text-base">✨ Special</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl border border-red-100">
+                      <span className="font-medium text-slate-700">--- Horizontal Rule</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+H</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl border border-red-100">
+                      <span className="font-medium text-slate-700">@username Mention</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+@</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl border border-red-100">
+                      <span className="font-medium text-slate-700">😀 Emoji Picker</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Shift+E</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-3 text-base">⚡ Actions</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+                      <span className="font-medium text-slate-700">Save Draft</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+S</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+                      <span className="font-medium text-slate-700">Publish</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Enter</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+                      <span className="font-medium text-slate-700">Indent</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Tab</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+                      <span className="font-medium text-slate-700">Outdent</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Shift+Tab</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+                      <span className="font-medium text-slate-700">Undo</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Z</kbd>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border border-slate-100">
+                      <span className="font-medium text-slate-700">Redo</span>
+                      <kbd className="text-xs bg-white px-2 py-1 rounded-lg shadow-sm border">Ctrl+Y</kbd>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
