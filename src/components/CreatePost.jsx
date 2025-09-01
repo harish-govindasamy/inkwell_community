@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/SupabaseAuthContext";
 import { useToast } from "./ToastProvider";
@@ -408,13 +408,7 @@ const CreatePost = ({ isEdit = false }) => {
   };
 
   // Load existing post for editing
-  useEffect(() => {
-    if (isEdit && id) {
-      loadPostForEditing();
-    }
-  }, [isEdit, id]);
-
-  const loadPostForEditing = async () => {
+  const loadPostForEditing = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await postService.getPostById(id);
@@ -440,7 +434,13 @@ const CreatePost = ({ isEdit = false }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (isEdit && id) {
+      loadPostForEditing();
+    }
+  }, [isEdit, id, loadPostForEditing]);
 
   // Handle save function with Supabase database
   const handleSave = async (publish = false) => {
@@ -903,7 +903,7 @@ const CreatePost = ({ isEdit = false }) => {
               {/* Enhanced Toolbar */}
               <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-2xl p-6 markdown-toolbar shadow-lg">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-slate-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  <h3 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                     ✨ Markdown Tools
                   </h3>
                   <button
@@ -1123,7 +1123,7 @@ const CreatePost = ({ isEdit = false }) => {
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      code({ node, inline, className, children, ...props }) {
+                      code({ inline, className, children, ...props }) {
                         const match = /language-(\w+)/.exec(className || "");
                         return !inline && match ? (
                           <SyntaxHighlighter
@@ -1158,7 +1158,7 @@ const CreatePost = ({ isEdit = false }) => {
           >
             {/* Enhanced Excerpt */}
             <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
-              <h3 className="text-lg font-bold mb-4 text-slate-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h3 className="text-lg font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 📝 Post Excerpt
               </h3>
               <textarea
@@ -1191,7 +1191,7 @@ const CreatePost = ({ isEdit = false }) => {
 
             {/* Enhanced Cover Image */}
             <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
-              <h3 className="text-lg font-bold mb-4 text-slate-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h3 className="text-lg font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 🖼️ Banner Image
               </h3>
               {formData.coverImage ? (
@@ -1233,7 +1233,7 @@ const CreatePost = ({ isEdit = false }) => {
 
             {/* Enhanced Markdown Guide */}
             <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
-              <h3 className="text-lg font-bold mb-6 text-slate-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h3 className="text-lg font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 📚 Markdown Guide
               </h3>
                               <div className="space-y-4 text-sm">

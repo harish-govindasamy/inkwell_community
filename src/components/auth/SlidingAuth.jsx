@@ -38,7 +38,7 @@ const SlidingAuth = () => {
 
   // Show development bypass after 10 seconds in development mode
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
+    if (import.meta.env.MODE === "development") {
       const timer = setTimeout(() => {
         setShowDevBypass(true);
       }, 10000);
@@ -190,7 +190,7 @@ const SlidingAuth = () => {
       }}
     >
       {/* Development bypass button */}
-      {showDevBypass && process.env.NODE_ENV === "development" && (
+      {showDevBypass && import.meta.env.MODE === "development" && (
         <div className="fixed top-4 left-4 z-50">
           <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg shadow-lg">
             <div className="text-sm mb-2">
